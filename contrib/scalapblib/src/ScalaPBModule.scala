@@ -3,7 +3,7 @@ package contrib.scalapblib
 
 import coursier.MavenRepository
 import coursier.core.Version
-import mill.define.Sources
+import mill.define.{Sources, Target, Task}
 import mill.api.PathRef
 import mill.scalalib.Lib.resolveDependencies
 import mill.scalalib._
@@ -31,6 +31,16 @@ trait ScalaPBModule extends ScalaModule {
 
   def scalaPBSources: Sources = T.sources {
     millSourcePath / 'protobuf
+  }
+
+  private def emptySources: Sources = T.sources()
+
+  def scalaPBIncludes = T {
+    val includes = Task.traverse(transitiveModuleDeps) {
+      case m: ScalaPBModule => m.scalaPBSources
+      case _ => emptySources
+    }
+    includes
   }
 
   def scalaPBOptions: T[String] = T {
@@ -64,6 +74,7 @@ trait ScalaPBModule extends ScalaModule {
       .compile(
         scalaPBClasspath().map(_.path),
         scalaPBSources().map(_.path),
+        scalaPBIncludes().flatten.map(_.path),
         scalaPBOptions(),
         T.ctx().dest)
   }

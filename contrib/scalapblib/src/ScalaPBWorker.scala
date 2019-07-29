@@ -21,17 +21,14 @@ class ScalaPBWorker {
         val mainMethod = scalaPBCompilerClass.getMethod("main", classOf[Array[java.lang.String]])
 
         val instance = new ScalaPBWorkerApi {
-          override def compileScalaPB(source: File, scalaPBOptions: String, generatedDirectory: File) {
+          override def compileScalaPB(includes: Seq[File], source: File, scalaPBOptions: String, generatedDirectory: File) {
             val opts = if (scalaPBOptions.isEmpty) "" else scalaPBOptions + ":"
-            mainMethod.invoke(
-              null,
-              Array(
-                "--throw",
-                s"--scala_out=${opts}${generatedDirectory.getCanonicalPath}",
-                s"--proto_path=${source.getParentFile.getCanonicalPath}",
-                source.getCanonicalPath
-              )
-            )
+            val args = Seq(
+              "--throw",
+              s"--scala_out=${opts}${generatedDirectory.getCanonicalPath}") ++
+                includes.map(f => s"-I${f.getCanonicalPath}") ++
+                Seq(source.getCanonicalPath)
+            mainMethod.invoke(null, args.toArray)
           }
         }
         scalaPBInstanceCache = Some((classloaderSig, instance))
@@ -39,7 +36,7 @@ class ScalaPBWorker {
     }
   }
 
-  def compile(scalaPBClasspath: Agg[os.Path], scalaPBSources: Seq[os.Path], scalaPBOptions: String, dest: os.Path)
+  def compile(scalaPBClasspath: Agg[os.Path], scalaPBSources: Seq[os.Path], includes: Seq[os.Path], scalaPBOptions: String, dest: os.Path)
              (implicit ctx: mill.api.Ctx): mill.api.Result[PathRef] = {
     val compiler = scalaPB(scalaPBClasspath)
 
@@ -48,7 +45,7 @@ class ScalaPBWorker {
       if (inputDir.toIO.exists) {
         os.walk(inputDir).filter(_.last.matches(".*.proto"))
           .foreach { proto =>
-            compiler.compileScalaPB(proto.toIO, scalaPBOptions, dest.toIO)
+            compiler.compileScalaPB(includes.map(_.toIO), proto.toIO, scalaPBOptions, dest.toIO)
           }
       }
     }
@@ -60,7 +57,7 @@ class ScalaPBWorker {
 }
 
 trait ScalaPBWorkerApi {
-  def compileScalaPB(source: File, scalaPBOptions: String, generatedDirectory: File)
+  def compileScalaPB(includes: Seq[File], source: File, scalaPBOptions: String, generatedDirectory: File)
 }
 
 object ScalaPBWorkerApi {
