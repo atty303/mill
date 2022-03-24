@@ -314,35 +314,31 @@ trait JavaModule
   // Keep in sync with [[compileClasspath]]
   @internal
   def bspCompileClasspath(pathsResolver: Task[EvaluatorPathsResolver]): Task[Seq[PathRef]] = {
-    def bspLocalClasspath(
-        j: JavaModule,
-        pathsResolver: Task[EvaluatorPathsResolver]
-    ): Task[Seq[PathRef]] = {
-      val cl = bspCompileClassesPath(pathsResolver)
+    @scala.annotation.tailrec
+    def bspTransitiveModuleDeps(
+        todo: List[JavaModule],
+        acc: Set[JavaModule] = Set.empty
+    ): Set[JavaModule] =
+      todo match {
+        case head :: tail =>
+          val newAcc = acc + head
+          val newTodo =
+            if (newAcc.size > acc.size) head.moduleDeps.iterator.concat(
+              head.compileModuleDeps.iterator
+            ).filterNot(acc.contains)
+            else Iterator.empty
+          bspTransitiveModuleDeps(newTodo ++: tail, newAcc)
+        case Nil => acc
+      }
+
+    val lcp = T.traverse(bspTransitiveModuleDeps(this :: Nil).toSeq) { m =>
       T.task {
-        resources() ++ Seq(cl())
+        m.bspCompileClassesPath(pathsResolver)() +: m.resources()
       }
     }
 
-    def bspTransitiveLocalClasspath(
-        j: JavaModule,
-        pathsResolver: Task[EvaluatorPathsResolver]
-    ): Task[Seq[PathRef]] = {
-      val res = T.traverse(j.moduleDeps ++ j.compileModuleDeps)(m =>
-        T.task {
-          bspLocalClasspath(m, pathsResolver)() ++ bspTransitiveLocalClasspath(m, pathsResolver)()
-        }
-      )
-      T.task {
-        val res2: Seq[PathRef] = res().flatten
-        res2
-      }
-    }
-
-    val lcp = bspTransitiveLocalClasspath(this, pathsResolver)
     T.task {
-      lcp() ++
-        resources() ++
+      lcp().flatten ++
         unmanagedClasspath() ++
         resolvedIvyDeps()
     }
