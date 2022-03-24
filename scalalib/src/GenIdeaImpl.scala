@@ -857,6 +857,7 @@ case class GenIdeaImpl(
 
     <project version={"" + ideaConfigVersion}>
       <component name="ScalaCompilerConfiguration">
+        <option name="incrementalityType" value="SBT" />
         {
       for ((((plugins, params), mods), i) <- settings.toSeq.zip(1 to settings.size))
         yield <profile name={s"mill $i"} modules={mods.map(m => moduleName(m.millModuleSegments)).mkString(",")}>
