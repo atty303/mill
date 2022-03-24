@@ -111,7 +111,8 @@ trait MillBuildTarget // (rootModule: BaseModule, ctx0: mill.define.Ctx)
     T.log.errorStream.println(s"sources: ${T.dest}")
     val sources = ammoniteFiles()
     T.log.errorStream.println(s"sources: ${sources}")
-    sources
+    // sources
+    Seq.empty[PathRef]
   }
   override def allSourceFiles: T[Seq[PathRef]] = T {
     findSources(sources().map(_.path))
